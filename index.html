@@ -93,7 +93,8 @@
 			}
 
 			function render() {
-				var time = Date.now()/1000;
+				var d = new Date();
+				var time = ( d.getTime() - d.getTimezoneOffset() )/1000;
 				var hue = ( time % bgPeriod ) / bgPeriod;
 				var bgColour = he3.colours.getSoft( hue );
 				scene.background = bgColour;
