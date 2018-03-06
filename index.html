@@ -1,7 +1,7 @@
 <!doctype html>
 <html>
 	<head>
-		<title><3</title>
+		<title>♥</title>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 		<link rel="shortcut icon" type="image/x-icon" href="favicon.png">
@@ -40,15 +40,44 @@
 	<body>
 		<script>
 			var camera, scene, renderer;
+            var windowLimit;
 
-			var heart;
+			var heart, te, amo, teText, amoText, heartBox;
 
 			var bgPeriod = 15;
-			var heartPeriod = 30;
+			var heartPeriod = 10;
+            var heartSwing = Math.PI/16;
 
 
 			init();
 			animate();
+
+            function positionText() {
+                var aspect = Math.min(camera.aspect,Math.sqrt(3));
+                var c = heartBox.boundingBox.getCenter();
+                var s = heartBox.boundingBox.getSize()
+                var pushUp = typeof heart === 'undefined' ? 0 :  s.y * heart.children[0].scale.y * 1.0 / 2;
+                var pushRight = typeof heart === 'undefined' ? 0 :  s.y * heart.children[0].scale.z * 1.3/ 2;
+
+                var tc = teText.boundingBox.getCenter();
+                var ac = amoText.boundingBox.getCenter();
+                var ts = teText.boundingBox.getSize()
+                var as = amoText.boundingBox.getSize()
+
+                if ( camera.aspect < Math.sqrt(3) ) {
+                    te.position.set( c.x, c.y + pushUp, c.z + tc.x );
+                    amo.position.set( c.x, c.y - pushUp - as.y * 2, c.z + ac.x );
+                } else if (camera.aspect > Math.sqrt(5) ) {
+                    te.position.set( c.x, c.y - ts.y /2, c.z + ts.x + pushRight);
+                    amo.position.set( c.x, c.y - as.y /2, c.z - pushRight );
+                } else {
+                    var A = ( camera.aspect - Math.sqrt(3) ) / ( Math.sqrt(5) - Math.sqrt(3) );
+                    var B = 1 - A
+                    te.position.set( c.x + 20, c.y + B * pushUp - A * ts.y /2 , c.z + B * tc.x + A * ( ts.x + pushRight ) );
+                    amo.position.set( c.x + 20, c.y - B * ( pushUp + as.y * 2 ) - A * as.y /2, c.z + B * ac.x - A * pushRight );
+                }
+
+            }
 
 			function init() {
 				var container = 
@@ -56,9 +85,12 @@
 				camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 10000 );
 				camera.position.z = 400;
 
+                windowLimit = Math.min( window.innerWidth, window.innerHeight );
+
 				renderer = new THREE.WebGLRenderer();
 				renderer.setPixelRatio( window.devicePixelRatio );
 				renderer.setSize( window.innerWidth, window.innerHeight );
+				camera.updateProjectionMatrix();
 				document.body.appendChild( renderer.domElement );
 
 				var loadingManager = new THREE.LoadingManager( function() {
@@ -67,14 +99,18 @@
 				} );
 
 				var loader = new THREE.ColladaLoader( loadingManager );
-				loader.load( './models/Heart.dae', function ( collada ) {
-					heart = collada.scene;
-					heart.scale.set(2,2,2);
-					heart.children[0].position.set(0,-200,0);
-					heart.children[0].rotation.set(0,0,0);
-					var material = new THREE.MeshToonMaterial();
-					heart.children[0].material = material;
-				} );
+				loader.load( './models/Heart.dae', 
+                    function ( collada ) {
+                        heart = collada.scene;
+                        heart.scale.set( 2, 2, 2 );
+                        heart.children[0].position.set(0,-200,0);
+                        heart.children[0].rotation.set(0,0,0);
+                        var material = new THREE.MeshToonMaterial();
+                        heart.children[0].material = material;
+                        heartBox = heart.children[0].geometry;
+                        heartBox.computeBoundingBox();
+                    },
+                );
 
 				var directionalLight = new THREE.DirectionalLight( 0xffffff, 0.5 );
 				directionalLight.position.set(400,400,400);
@@ -83,6 +119,35 @@
 				var directionalLight2 = new THREE.DirectionalLight( 0xffffff, 0.5 );
 				directionalLight2.position.set(-400,-400,-400);
 				scene.add(directionalLight2);
+
+                var fontLoader = new THREE.FontLoader();
+                var font = fontLoader.load('fonts/NovaMono_Regular.json', 
+                    function( font ) {
+                        console.log("added font");
+                        teText = new THREE.TextGeometry( "te", { 'font': font, 'size': 50 } );
+                        teText.computeBoundingBox();
+                        te = new THREE.Mesh( teText, new THREE.MeshToonMaterial() );
+                        te.scale.z = 0.1;
+                        te.rotation.y = Math.PI/2;
+                        heart.add( te );
+
+                        amoText = new THREE.TextGeometry( "amo", { 'font': font, 'size': 50  } );
+                        amoText.computeBoundingBox();
+                        amo = new THREE.Mesh( amoText, new THREE.MeshToonMaterial() );
+                        amo.scale.z = 0.1;
+                        amo.rotation.y = Math.PI/2;
+                        heart.add( amo );
+
+                        positionText();
+                    },
+                    function ( xhr ) {
+                        console.log( (xhr.loaded / xhr.total * 100) + '% loaded' );
+                    },
+                    function ( err ) {
+                        console.log( 'An error happened' );
+                    }
+
+                );
 
 				window.addEventListener( 'resize', onWindowResize, false );
 			}
@@ -100,26 +165,40 @@
 				scene.background = bgColour;
 
 				if(typeof heart !== 'undefined') {
-					heart.rotation.x = 2 * Math.PI * (time % heartPeriod ) / heartPeriod;
-					heart.rotation.y = 2 * Math.PI * (time % (2 * heartPeriod) ) / (2 * heartPeriod);
+                    var rotX = 2 * Math.PI * (time % heartPeriod ) / heartPeriod;
+                    var rotY = 2 * Math.PI * (time % ( 2 * heartPeriod ) ) / ( 2 * heartPeriod );
+					heart.rotation.x = heartSwing * Math.sin(rotX);
+					heart.rotation.y = -Math.PI / 2 + heartSwing *  Math.sin(rotY);
 
 					var heartColour = he3.colours.getHard( (hue + 0.5) % 1 );
 					heart.children[0].material.color = heartColour;	
 				}
-		
+
+                if(typeof te !== 'undefined') {
+                    te.material.color = he3.colours.getHard( (hue + 0.25) % 1 );
+                    amo.material.color = he3.colours.getHard( (hue + 0.75) % 1 );
+                }
+
 				renderer.render( scene, camera );
 			}
 
 			function onWindowResize() {
+                windowLimit = Math.min( window.innerWidth, window.innerHeight );
 				camera.aspect = window.innerWidth / window.innerHeight;
+                var aspect = Math.min(camera.aspect,1);
+
+                positionText();
+                if( typeof heart !== 'undefined' ) {
+                    if( camera.aspect < 1 ) {
+                        heart.scale.set( 2*aspect, 2*aspect, 2*aspect );
+                    } else {
+                        heart.scale.set( 2,2,2 );
+                    }
+                }
 				camera.updateProjectionMatrix();
 				renderer.setSize( window.innerWidth, window.innerHeight );
 			}
 
 		</script>
-		<div class="parent">
-			<div class="te">te</div>
-			<div class="amo">amo</div>
-		</div>
 	</body>
 </html>
